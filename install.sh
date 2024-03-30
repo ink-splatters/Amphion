@@ -3,6 +3,7 @@
 set -e
 
 ENV=${ENV:-amphion}
+PYTHON_VER=${PYTHON_VER:-3.9}
 
 _last_tool=
 
@@ -40,11 +41,11 @@ function _check_tool() {
 
 function _install_deps() {
 
-	pip install -U encodec
-
 	echo "- installing python..."
-	$conda install -c conda-forge python=3.9
+	$conda install -c conda-forge python=${PYTHON_VER}
+
 	pip install -U pip wheel setuptools
+	pip install -U encodec
 
 	echo "- installing requirements..."
 	pip install https://github.com/vBaiCai/python-pesq/archive/master.zip
@@ -52,7 +53,6 @@ function _install_deps() {
 	pip install -U encodec
 	pip install -r requirements.txt
 	echo "- installation complete"
-
 }
 
 function _activate() {
@@ -67,22 +67,23 @@ conda=${_last_tool}
 
 echo
 echo "- using $conda to manage python environment: $ENV"
+eval "$($conda shell hook --shell bash)"
 
-if ! command $conda activate $ENV 2>/dev/null; then
+if [ "$1" = "--reinstall" ]; then
+	echo "- --reinstall flag provided, re-installing..."
+	$conda env remove -n $ENV
+	$conda env create -n $ENV
+
+	_activate
+	_install_deps
+elif ! command $conda activate $ENV 2>/dev/null; then
+
 	echo "- does not exist. creating..."
 	$conda env create -n $ENV
-	_activate
 
+	_activate
 	_install_deps
 
 else
-	if [ "$1" = "--reinstall" ]; then
-		echo "- --reinstall flag provided, re-installing..."
-		$conda env remove -n $ENV
-		$conda env create -n $ENV
-		_activate
-		_install_deps
-	else
-		_activate
-	fi
+	_activate
 fi
