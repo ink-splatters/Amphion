@@ -1,5 +1,4 @@
-#!/usr/bin/env bash
-
+#!/bin/zsh
 set -e
 
 ENV=${ENV:-amphion}
@@ -7,13 +6,15 @@ PYTHON_VER=${PYTHON_VER:-3.9}
 
 _last_tool=
 
+alias _pip='pip -v'
+
 function _check_tool() {
 
 	local exists=0
 	for x in "$@"; do
 		if command -v "$x" >/dev/null 2>&1; then
 			exists=1
-			echo - $x installed
+			echo "- $x installed"
 			_last_tool="$x"
 			break
 		fi
@@ -38,26 +39,28 @@ function _check_tool() {
 	fi
 
 }
-
-function _install_deps() {
-
+function _install_python() {
 	echo "- installing python..."
 	$conda install -c conda-forge python=${PYTHON_VER}
+	_pip install -U pip wheel setuptools
+}
+function _install_deps() {
 
-	pip install -U pip wheel setuptools
-	pip install -U encodec
+
+	_pip install -U encodec
 
 	echo "- installing requirements..."
-	pip install https://github.com/vBaiCai/python-pesq/archive/master.zip
-	pip install git+https://github.com/lhotse-speech/lhotse
-	pip install -U encodec
-	pip install -r requirements.txt
+	_pip install https://github.com/vBaiCai/python-pesq/archive/master.zip
+	_pip install git+https://github.com/lhotse-speech/lhotse
+	_pip install -U encodec
+	_pip install -r requirements.txt
 	echo "- installation complete"
 }
 
 function _activate() {
-	$conda activate $ENV
-	echo "- $conda environment activated"
+	local msg="- $conda environment $ENV"
+	$conda activate $ENV && echo "$msg activated" || \
+        { echo "$msg does not exist" ; return 1; }
 }
 
 _check_tool ffmpeg
@@ -67,7 +70,7 @@ conda=${_last_tool}
 
 echo
 echo "- using $conda to manage python environment: $ENV"
-eval "$($conda shell hook --shell bash)"
+eval "$($conda shell hook --shell zsh)"
 
 if [ "$1" = "--reinstall" ]; then
 	echo "- --reinstall flag provided, re-installing..."
@@ -76,14 +79,30 @@ if [ "$1" = "--reinstall" ]; then
 
 	_activate
 	_install_deps
-elif ! command $conda activate $ENV 2>/dev/null; then
-
-	echo "- does not exist. creating..."
-	$conda env create -n $ENV
-
-	_activate
-	_install_deps
-
 else
+    _activate && {
+	args=( "$@" )
+    } || {
+	args=( --install-python --install-deps)
+
+	echo "- creating..."
+	$conda env create -n $ENV
 	_activate
+    }
+
+    for arg in "${args[@]}"; do
+	case "$arg" in
+	    --install-python)
+		_install_python
+		;;
+	    --install-deps)
+		_install_deps
+		;;
+
+	    *)
+		echo ERROR: unknown arg: $arg
+		;;
+	esac
+    done
+
 fi
